@@ -1,0 +1,26 @@
+{
+  "id": "laptop-007",
+  "name": "Surface Laptop 5",
+  "description": "Sleek and powerful laptop perfect for business professionals who want premium design and performance.",
+  "category": "Laptops",
+  "price": 1399.99,
+  "features": [
+    "12th Gen Intel Core i7 processor",
+    "13.5-inch PixelSense touchscreen",
+    "16GB LPDDR5x RAM",
+    "512GB SSD storage", 
+    "Windows 11 Pro",
+    "All-day battery life"
+  ],
+  "specifications": {
+    "processor": "Intel Core i7-1255U",
+    "memory": "16GB LPDDR5x",
+    "storage": "512GB SSD",
+    "display": "13.5-inch PixelSense (2256x1504)",
+    "weight": "2.86 lbs",
+    "color": "Platinum",
+    "os": "Windows 11 Pro",
+    "warranty": "1 year limited warranty"
+  },
+  "availability": true
+} 
