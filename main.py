@@ -39,6 +39,32 @@ async def startup_event():
     print(f"OpenAI Model: {settings.OPENAI_MODEL}")
     print(f"Embedding Model: {settings.EMBEDDING_MODEL}")
     print(f"Chroma DB Path: {settings.CHROMA_PERSIST_DIRECTORY}")
+    
+    # Auto-populate sample data if database is empty
+    try:
+        existing_products = vector_store.get_all_products()
+        if len(existing_products) == 0:
+            print("📚 Database is empty. Loading sample data...")
+            await populate_sample_data()
+            print("✅ Sample data loaded successfully!")
+        else:
+            print(f"📊 Found {len(existing_products)} existing products in database")
+    except Exception as e:
+        print(f"⚠️ Error checking/loading sample data: {e}")
+
+async def populate_sample_data():
+    """Populate the database with sample products"""
+    from sample_data import SAMPLE_PRODUCTS
+    
+    success_count = 0
+    for product in SAMPLE_PRODUCTS:
+        try:
+            if vector_store.add_product(product):
+                success_count += 1
+        except Exception as e:
+            print(f"❌ Failed to add {product.name}: {e}")
+    
+    print(f"📦 Successfully loaded {success_count}/{len(SAMPLE_PRODUCTS)} sample products")
 
 @app.get("/")
 async def root():
