@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  chatbot-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=gpt-4
+      - EMBEDDING_MODEL=text-embedding-ada-002
+      - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
+      - AUTO_POPULATE_DATA=true
+    volumes:
+      - chroma_data:/app/chroma_db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Separate init container for data population
+  data-init:
+    build: .
+    depends_on:
+      chatbot-api:
+        condition: service_healthy
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - chroma_data:/app/chroma_db
+    command: ["./init-data.sh"]
+    restart: "no"
+    profiles:
+      - init
+
+volumes:
+  chroma_data:
+    driver: local 
