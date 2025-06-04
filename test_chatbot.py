@@ -6,6 +6,7 @@ Test script to demonstrate the Customer Service Chatbot capabilities
 import requests
 import json
 import time
+import os
 
 BASE_URL = "http://localhost:8000"
 
@@ -144,6 +145,31 @@ def main():
         if uploads_response.status_code == 200:
             uploads = uploads_response.json()
             print(f"✅ Uploads endpoint working - Found {len(uploads)} uploaded files")
+            
+            # Test different file formats if they exist
+            test_files = [
+                ("sample_products.json", "JSON format"),
+                ("sample_products.txt", "Text format"),
+                ("sample_products.xml", "XML format")
+            ]
+            
+            for filename, description in test_files:
+                if os.path.exists(filename):
+                    print(f"\n🧪 Testing {description}: {filename}")
+                    try:
+                        with open(filename, 'rb') as f:
+                            files = {'file': (filename, f, 'application/octet-stream')}
+                            upload_response = requests.post(f"{BASE_URL}/upload/products", files=files)
+                            
+                        if upload_response.status_code == 200:
+                            result = upload_response.json()
+                            print(f"✅ {description} upload successful - Added {result['products_added']} products")
+                        else:
+                            print(f"❌ {description} upload failed: {upload_response.status_code}")
+                    except Exception as e:
+                        print(f"❌ Error testing {description}: {e}")
+                else:
+                    print(f"⚠️  {filename} not found - skipping {description} test")
         else:
             print(f"❌ Uploads endpoint error: {uploads_response.status_code}")
     except Exception as e:

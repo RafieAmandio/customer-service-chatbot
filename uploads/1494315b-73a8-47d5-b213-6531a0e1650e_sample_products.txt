@@ -1,0 +1,60 @@
+KATALOG PRODUK TEKNOLOGI TERBARU
+
+=== LAPTOP GAMING ===
+
+MSI Gaming Laptop GF63
+- ID: laptop-gaming-001
+- Kategori: Laptop Gaming
+- Harga: Rp 12.500.000
+- Deskripsi: Laptop gaming dengan performa tinggi untuk gaming dan multitasking
+- Prosesor: Intel Core i5-11400H
+- Memori: 8GB DDR4
+- Penyimpanan: 512GB NVMe SSD
+- Layar: 15.6 inch Full HD 144Hz
+- Grafis: NVIDIA GeForce GTX 1650
+
+ASUS TUF Gaming A15
+- ID: laptop-gaming-002  
+- Kategori: Laptop Gaming
+- Harga: Rp 15.750.000
+- Deskripsi: Laptop gaming tangguh dengan AMD Ryzen dan RTX graphics
+- Prosesor: AMD Ryzen 5 5600H
+- Memori: 16GB DDR4
+- Penyimpanan: 1TB NVMe SSD
+- Layar: 15.6 inch Full HD 144Hz
+- Grafis: NVIDIA GeForce RTX 3050
+
+=== AKSESORIS ===
+
+Razer DeathAdder V3 Gaming Mouse
+- ID: accessory-gaming-001
+- Kategori: Aksesoris Gaming
+- Harga: Rp 899.000
+- Deskripsi: Mouse gaming ergonomis dengan sensor presisi tinggi
+- Sensor: Focus Pro 30K
+- DPI: hingga 30.000
+- Tombol: 8 tombol yang dapat diprogram
+- Konektivitas: USB-C dengan wireless charging
+
+SteelSeries Arctis 7P Wireless Headset
+- ID: accessory-gaming-002
+- Kategori: Aksesoris Gaming  
+- Harga: Rp 3.200.000
+- Deskripsi: Headset gaming wireless dengan audio berkualitas studio
+- Driver: 40mm neodymium
+- Baterai: 24 jam penggunaan
+- Konektivitas: 2.4GHz wireless + Bluetooth
+- Mikrofon: ClearCast bidirectional dengan noise cancellation
+
+=== MONITOR ===
+
+LG UltraGear 27GP850
+- ID: monitor-gaming-001
+- Kategori: Monitor Gaming
+- Harga: Rp 6.500.000
+- Deskripsi: Monitor gaming 27 inch dengan refresh rate tinggi dan HDR
+- Ukuran: 27 inch QHD (2560x1440)
+- Refresh Rate: 165Hz
+- Response Time: 1ms GtG
+- Panel: Nano IPS dengan 98% DCI-P3
+- Fitur: G-SYNC Compatible, HDR10 

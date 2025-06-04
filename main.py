@@ -253,11 +253,15 @@ async def get_stats():
 # File Upload Endpoints
 @app.post("/upload/products", response_model=FileUploadResponse)
 async def upload_product_file(file: UploadFile = File(...)):
-    """Upload a JSON or CSV file containing product data"""
+    """Upload a JSON, CSV, PDF, TXT, or other text-based file containing product data"""
     try:
-        # Validate file type
-        if not file.filename.endswith(('.json', '.csv')):
-            raise HTTPException(status_code=400, detail="Only JSON and CSV files are supported")
+        # Validate file type - support multiple formats
+        supported_extensions = ('.json', '.csv', '.pdf', '.txt', '.md', '.docx', '.xml')
+        if not file.filename.lower().endswith(supported_extensions):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file type. Supported formats: {', '.join(supported_extensions)}"
+            )
         
         # Save uploaded file
         upload_id = str(uuid.uuid4())
@@ -267,12 +271,22 @@ async def upload_product_file(file: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             f.write(content)
         
-        # Parse and add products
+        # Parse and add products based on file type
         products_added = 0
-        if file.filename.endswith('.json'):
+        file_extension = file.filename.lower().split('.')[-1]
+        
+        if file_extension == 'json':
             products_added = await _process_json_file(file_path)
-        elif file.filename.endswith('.csv'):
+        elif file_extension == 'csv':
             products_added = await _process_csv_file(file_path)
+        elif file_extension == 'pdf':
+            products_added = await _process_pdf_file(file_path)
+        elif file_extension in ['txt', 'md']:
+            products_added = await _process_text_file(file_path)
+        elif file_extension == 'docx':
+            products_added = await _process_docx_file(file_path)
+        elif file_extension == 'xml':
+            products_added = await _process_xml_file(file_path)
         
         # Track uploaded file
         file_upload = FileUpload(
@@ -378,6 +392,223 @@ async def _process_csv_file(file_path: str) -> int:
         
     except Exception as e:
         print(f"Error processing CSV file: {e}")
+        return 0
+
+async def _process_pdf_file(file_path: str) -> int:
+    """Process a PDF file containing product data"""
+    try:
+        import PyPDF2
+        import pdfplumber
+        import re
+        
+        # Try pdfplumber first (better text extraction)
+        text_content = ""
+        try:
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_content += page_text + "\n"
+        except Exception:
+            # Fallback to PyPDF2
+            with open(file_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                for page in pdf_reader.pages:
+                    text_content += page.extract_text() + "\n"
+        
+        if not text_content.strip():
+            print("No text content extracted from PDF")
+            return 0
+        
+        # Parse text content for product information
+        return await _parse_text_for_products(text_content)
+        
+    except Exception as e:
+        print(f"Error processing PDF file: {e}")
+        return 0
+
+async def _process_text_file(file_path: str) -> int:
+    """Process a plain text or markdown file containing product data"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            text_content = f.read()
+        
+        return await _parse_text_for_products(text_content)
+        
+    except Exception as e:
+        print(f"Error processing text file: {e}")
+        return 0
+
+async def _process_docx_file(file_path: str) -> int:
+    """Process a Word document containing product data"""
+    try:
+        from docx import Document
+        
+        doc = Document(file_path)
+        text_content = ""
+        
+        # Extract text from paragraphs
+        for paragraph in doc.paragraphs:
+            text_content += paragraph.text + "\n"
+        
+        # Extract text from tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    text_content += cell.text + "\t"
+                text_content += "\n"
+        
+        return await _parse_text_for_products(text_content)
+        
+    except Exception as e:
+        print(f"Error processing DOCX file: {e}")
+        return 0
+
+async def _process_xml_file(file_path: str) -> int:
+    """Process an XML file containing product data"""
+    try:
+        import xml.etree.ElementTree as ET
+        
+        tree = ET.parse(file_path)
+        root = tree.getroot()
+        products_added = 0
+        
+        # Try to parse as structured XML first
+        products = root.findall('.//product') or root.findall('.//item') or [root]
+        
+        for product_elem in products:
+            try:
+                # Extract basic product info
+                product_data = {}
+                
+                # Common field mappings
+                field_mappings = {
+                    'id': ['id', 'product_id', 'sku'],
+                    'name': ['name', 'title', 'product_name'],
+                    'description': ['description', 'desc', 'summary'],
+                    'category': ['category', 'type', 'class'],
+                    'price': ['price', 'cost', 'amount']
+                }
+                
+                for field, possible_names in field_mappings.items():
+                    for name in possible_names:
+                        elem = product_elem.find(f'.//{name}') or product_elem.find(name)
+                        if elem is not None and elem.text:
+                            if field == 'price':
+                                product_data[field] = float(elem.text.replace('$', '').replace(',', ''))
+                            else:
+                                product_data[field] = elem.text.strip()
+                            break
+                
+                # Extract features
+                features = []
+                features_elem = product_elem.find('.//features') or product_elem.find('features')
+                if features_elem is not None:
+                    for feature in features_elem.findall('.//feature') or features_elem.findall('item'):
+                        if feature.text:
+                            features.append(feature.text.strip())
+                
+                # Extract specifications
+                specs = {}
+                specs_elem = product_elem.find('.//specifications') or product_elem.find('specs')
+                if specs_elem is not None:
+                    for spec in specs_elem:
+                        if spec.text:
+                            specs[spec.tag] = spec.text.strip()
+                
+                # Create product if we have minimum required fields
+                if all(field in product_data for field in ['id', 'name', 'description', 'category', 'price']):
+                    product = Product(
+                        id=product_data['id'],
+                        name=product_data['name'],
+                        description=product_data['description'],
+                        category=product_data['category'],
+                        price=product_data['price'],
+                        features=features or [],
+                        specifications=specs or {},
+                        availability=True
+                    )
+                    
+                    if vector_store.add_product(product):
+                        products_added += 1
+                        
+            except Exception as e:
+                print(f"Error processing XML product: {e}")
+        
+        # If structured parsing failed, try text parsing
+        if products_added == 0:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text_content = f.read()
+            return await _parse_text_for_products(text_content)
+        
+        return products_added
+        
+    except Exception as e:
+        print(f"Error processing XML file: {e}")
+        return 0
+
+async def _parse_text_for_products(text_content: str) -> int:
+    """Parse unstructured text content for product information using AI"""
+    try:
+        # Use OpenAI to extract product information from text
+        from openai import OpenAI
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        
+        prompt = f"""
+        Extract product information from the following text and format it as a JSON array of products.
+        Each product should have these fields:
+        - id: a unique identifier (generate if not present)
+        - name: product name
+        - description: product description
+        - category: product category (e.g., "Laptop", "Smartphone", "Monitor", "Aksesoris")
+        - price: price as a number (convert currencies to IDR if needed, assume USD if currency not specified)
+        - features: array of key features
+        - specifications: object with technical specifications
+        - availability: boolean (assume true if not specified)
+
+        Text content:
+        {text_content[:4000]}  # Limit to avoid token limits
+
+        Return ONLY the JSON array, no other text:
+        """
+        
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2000,
+            temperature=0.1
+        )
+        
+        # Parse the AI response as JSON
+        ai_response = response.choices[0].message.content.strip()
+        
+        # Clean up the response (remove markdown formatting if present)
+        if ai_response.startswith('```json'):
+            ai_response = ai_response[7:]
+        if ai_response.endswith('```'):
+            ai_response = ai_response[:-3]
+        
+        products_data = json.loads(ai_response)
+        
+        # Add products to the database
+        products_added = 0
+        if isinstance(products_data, list):
+            for product_data in products_data:
+                try:
+                    # Ensure we have an ID
+                    if 'id' not in product_data or not product_data['id']:
+                        product_data['id'] = f"extracted-{uuid.uuid4().hex[:8]}"
+                    
+                    product = Product(**product_data)
+                    if vector_store.add_product(product):
+                        products_added += 1
+                except Exception as e:
+                    print(f"Error creating product from AI extraction: {e}")
+        
+        return products_added
+        
+    except Exception as e:
+        print(f"Error parsing text for products: {e}")
         return 0
 
 if __name__ == "__main__":
