@@ -187,7 +187,8 @@ class ChatbotService:
                 conversation_id, 
                 product_context,
                 request.message,
-                is_asking_for_products
+                is_asking_for_products,
+                is_voice=request.voice  # Pass voice parameter
             )
             
             # Add assistant response to conversation
@@ -231,7 +232,7 @@ class ChatbotService:
         
         return context
 
-    async def _generate_response(self, conversation_id: str, product_context: str, current_message: str, is_product_request: bool) -> str:
+    async def _generate_response(self, conversation_id: str, product_context: str, current_message: str, is_product_request: bool, is_voice: bool = False) -> str:
         """Generate response using OpenAI with full conversation context"""
         try:
             # Prepare messages for OpenAI - include full conversation history
@@ -241,6 +242,22 @@ class ChatbotService:
             # Add all conversation messages
             for msg in conversation_history:
                 messages.append({"role": msg.role, "content": msg.content})
+            
+            # Add voice-specific instruction if needed
+            if is_voice:
+                voice_instruction = """
+                IMPORTANT: This is a voice response request. Your response must be:
+                - Maximum 1 sentence
+                - Concise and direct
+                - Natural for voice output
+                - Still helpful and informative
+                
+                Respond in the same language as the customer (English or Indonesian).
+                """
+                messages.append({
+                    "role": "system",
+                    "content": voice_instruction
+                })
             
             # Add product context only if this is a product-related request
             if is_product_request and product_context and product_context != "No specific products found for this query.":
@@ -253,7 +270,7 @@ class ChatbotService:
                 - Reference their conversation history when relevant
                 - Suggest products that match their stated needs and preferences
                 - Mention current promotions when appropriate
-                - Ask follow-up questions to better understand their requirements
+                {"- Keep response to 1 sentence maximum for voice output" if is_voice else "- Ask follow-up questions to better understand their requirements"}
                 """
                 messages.append({
                     "role": "system", 
@@ -261,7 +278,7 @@ class ChatbotService:
                 })
             elif is_product_request and not product_context:
                 # If asking for products but none found
-                no_products_message = """
+                no_products_message = f"""
                 The customer is asking for product recommendations, but no matching products were found in the database. 
                 Please acknowledge their request and suggest they:
                 1. Try different search terms
@@ -269,23 +286,39 @@ class ChatbotService:
                 3. Browse our website categories
                 
                 Respond in the same language as the customer.
+                {"Keep response to 1 sentence maximum for voice output." if is_voice else ""}
                 """
                 messages.append({
                     "role": "system",
                     "content": no_products_message
                 })
             
+            # Adjust max_tokens for voice responses
+            max_tokens = 50 if is_voice else 600
+            
             response = self.openai_client.chat.completions.create(
                 model=settings.OPENAI_MODEL,
                 messages=messages,
-                max_tokens=600,
+                max_tokens=max_tokens,
                 temperature=0.7
             )
             
-            return response.choices[0].message.content
+            response_content = response.choices[0].message.content
+            
+            # Additional safety check for voice responses - ensure it's truly 1 sentence
+            if is_voice:
+                # Split by sentence-ending punctuation and take first sentence
+                import re
+                sentences = re.split(r'[.!?]+', response_content)
+                if sentences and sentences[0].strip():
+                    response_content = sentences[0].strip() + "."
+            
+            return response_content
             
         except Exception as e:
             print(f"Error generating OpenAI response: {e}")
+            if is_voice:
+                return "Sorry, I'm having trouble right now. / Maaf, saya mengalami masalah."
             return "I apologize, but I'm having trouble generating a response right now. Please try rephrasing your question. / Maaf, saya mengalami kesulitan memberikan respons saat ini. Silakan coba ulangi pertanyaan Anda."
 
     def _calculate_confidence(self, relevant_products: List[Dict[str, Any]]) -> float:

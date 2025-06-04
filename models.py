@@ -21,6 +21,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
+    voice: Optional[bool] = False  # New parameter for voice responses
 
 class ChatResponse(BaseModel):
     response: str
@@ -37,4 +38,18 @@ class ProductQuery(BaseModel):
 class ProductRecommendation(BaseModel):
     products: List[Product]
     reasoning: str
-    match_score: float 
+    match_score: float
+
+# New models for file upload functionality
+class FileUpload(BaseModel):
+    filename: str
+    upload_time: datetime
+    file_size: int
+    products_added: int
+    status: str
+
+class FileUploadResponse(BaseModel):
+    message: str
+    filename: str
+    products_added: int
+    upload_id: str 

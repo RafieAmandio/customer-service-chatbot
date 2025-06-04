@@ -1,12 +1,15 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 import uvicorn
 from datetime import datetime
+import json
+import uuid
+import os
 
 from models import (
     Product, ChatRequest, ChatResponse, ProductQuery, 
-    ProductRecommendation, ChatMessage
+    ProductRecommendation, ChatMessage, FileUpload, FileUploadResponse
 )
 from chatbot_service import ChatbotService
 from vector_store import VectorStore
@@ -31,6 +34,13 @@ app.add_middleware(
 # Initialize services
 chatbot_service = ChatbotService()
 vector_store = VectorStore()
+
+# File upload tracking
+uploaded_files: List[FileUpload] = []
+UPLOAD_DIR = "uploads"
+
+# Create upload directory if it doesn't exist
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @app.on_event("startup")
 async def startup_event():
@@ -239,6 +249,136 @@ async def get_stats():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving stats: {str(e)}")
+
+# File Upload Endpoints
+@app.post("/upload/products", response_model=FileUploadResponse)
+async def upload_product_file(file: UploadFile = File(...)):
+    """Upload a JSON or CSV file containing product data"""
+    try:
+        # Validate file type
+        if not file.filename.endswith(('.json', '.csv')):
+            raise HTTPException(status_code=400, detail="Only JSON and CSV files are supported")
+        
+        # Save uploaded file
+        upload_id = str(uuid.uuid4())
+        file_path = os.path.join(UPLOAD_DIR, f"{upload_id}_{file.filename}")
+        
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        # Parse and add products
+        products_added = 0
+        if file.filename.endswith('.json'):
+            products_added = await _process_json_file(file_path)
+        elif file.filename.endswith('.csv'):
+            products_added = await _process_csv_file(file_path)
+        
+        # Track uploaded file
+        file_upload = FileUpload(
+            filename=file.filename,
+            upload_time=datetime.now(),
+            file_size=len(content),
+            products_added=products_added,
+            status="success" if products_added > 0 else "failed"
+        )
+        uploaded_files.append(file_upload)
+        
+        return FileUploadResponse(
+            message=f"Successfully uploaded {file.filename} and added {products_added} products",
+            filename=file.filename,
+            products_added=products_added,
+            upload_id=upload_id
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+
+@app.get("/uploads", response_model=List[FileUpload])
+async def get_uploaded_files():
+    """Get list of all uploaded files"""
+    return uploaded_files
+
+@app.get("/uploads/{filename}")
+async def get_upload_details(filename: str):
+    """Get details of a specific uploaded file"""
+    for upload in uploaded_files:
+        if upload.filename == filename:
+            return upload
+    raise HTTPException(status_code=404, detail="File not found")
+
+async def _process_json_file(file_path: str) -> int:
+    """Process a JSON file containing product data"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        products_added = 0
+        
+        # Handle both single product and array of products
+        if isinstance(data, list):
+            for product_data in data:
+                try:
+                    product = Product(**product_data)
+                    if vector_store.add_product(product):
+                        products_added += 1
+                except Exception as e:
+                    print(f"Error adding product: {e}")
+        elif isinstance(data, dict):
+            try:
+                product = Product(**data)
+                if vector_store.add_product(product):
+                    products_added += 1
+            except Exception as e:
+                print(f"Error adding product: {e}")
+        
+        return products_added
+        
+    except Exception as e:
+        print(f"Error processing JSON file: {e}")
+        return 0
+
+async def _process_csv_file(file_path: str) -> int:
+    """Process a CSV file containing product data"""
+    try:
+        import pandas as pd
+        
+        df = pd.read_csv(file_path)
+        products_added = 0
+        
+        for _, row in df.iterrows():
+            try:
+                # Parse features and specifications from string format
+                features = row.get('features', '').split(',') if row.get('features') else []
+                features = [f.strip() for f in features if f.strip()]
+                
+                specs = {}
+                if 'specifications' in row and pd.notna(row['specifications']):
+                    # Assume specifications are in JSON format in the CSV
+                    specs = json.loads(row['specifications'])
+                
+                product = Product(
+                    id=row['id'],
+                    name=row['name'],
+                    description=row['description'],
+                    category=row['category'],
+                    price=float(row['price']),
+                    features=features,
+                    specifications=specs,
+                    availability=bool(row.get('availability', True))
+                )
+                
+                if vector_store.add_product(product):
+                    products_added += 1
+                    
+            except Exception as e:
+                print(f"Error adding product from CSV row: {e}")
+        
+        return products_added
+        
+    except Exception as e:
+        print(f"Error processing CSV file: {e}")
+        return 0
 
 if __name__ == "__main__":
     uvicorn.run(
