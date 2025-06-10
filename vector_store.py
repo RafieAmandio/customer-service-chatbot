@@ -8,14 +8,17 @@ from config import settings
 from models import Product
 
 class VectorStore:
-    def __init__(self):
+    def __init__(self, brand_id: Optional[str] = None):
+        self.brand_id = brand_id or "default"
         self.client = chromadb.PersistentClient(
             path=settings.CHROMA_PERSIST_DIRECTORY,
             settings=ChromaSettings(anonymized_telemetry=False)
         )
+        # Create collection name based on brand_id
+        self.collection_name = f"products_{self.brand_id}"
         self.collection = self.client.get_or_create_collection(
-            name="products",
-            metadata={"hnsw:space": "cosine"}
+            name=self.collection_name,
+            metadata={"hnsw:space": "cosine", "brand_id": self.brand_id}
         )
         self.openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
     
@@ -61,9 +64,10 @@ class VectorStore:
                     "category": product.category,
                     "price": product.price,
                     "availability": product.availability,
-                    "product_data": product.model_dump_json()
+                    "product_data": product.model_dump_json(),
+                    "brand_id": self.brand_id
                 }],
-                ids=[product.id]
+                ids=[f"{self.brand_id}_{product.id}"]
             )
             return True
         except Exception as e:
@@ -78,7 +82,8 @@ class VectorStore:
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=limit,
-                include=["metadatas", "documents", "distances"]
+                include=["metadatas", "documents", "distances"],
+                where={"brand_id": self.brand_id}
             )
             
             products = []
@@ -100,7 +105,7 @@ class VectorStore:
         """Search products by category"""
         try:
             results = self.collection.get(
-                where={"category": category},
+                where={"category": category, "brand_id": self.brand_id},
                 limit=limit,
                 include=["metadatas", "documents"]
             )
@@ -120,9 +125,12 @@ class VectorStore:
             return []
 
     def get_all_products(self) -> List[Product]:
-        """Get all products from the vector store"""
+        """Get all products from the vector store for this brand"""
         try:
-            results = self.collection.get(include=["metadatas"])
+            results = self.collection.get(
+                where={"brand_id": self.brand_id},
+                include=["metadatas"]
+            )
             products = []
             for metadata in results['metadatas']:
                 product_data = json.loads(metadata['product_data'])
@@ -136,7 +144,7 @@ class VectorStore:
         """Update a product in the vector store"""
         try:
             # Delete existing product
-            self.collection.delete(ids=[product.id])
+            self.collection.delete(ids=[f"{self.brand_id}_{product.id}"])
             # Add updated product
             return self.add_product(product)
         except Exception as e:
@@ -146,8 +154,36 @@ class VectorStore:
     def delete_product(self, product_id: str) -> bool:
         """Delete a product from the vector store"""
         try:
-            self.collection.delete(ids=[product_id])
+            self.collection.delete(ids=[f"{self.brand_id}_{product_id}"])
             return True
         except Exception as e:
             print(f"Error deleting product: {e}")
+            return False
+
+    @classmethod
+    def get_all_brand_collections(cls) -> List[str]:
+        """Get all brand collection names"""
+        try:
+            client = chromadb.PersistentClient(
+                path=settings.CHROMA_PERSIST_DIRECTORY,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
+            collections = client.list_collections()
+            brand_ids = []
+            for collection in collections:
+                if collection.name.startswith("products_"):
+                    brand_id = collection.name.replace("products_", "")
+                    brand_ids.append(brand_id)
+            return brand_ids
+        except Exception as e:
+            print(f"Error getting brand collections: {e}")
+            return []
+
+    def delete_brand_collection(self) -> bool:
+        """Delete all products for this brand"""
+        try:
+            self.client.delete_collection(name=self.collection_name)
+            return True
+        except Exception as e:
+            print(f"Error deleting brand collection: {e}")
             return False 

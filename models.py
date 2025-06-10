@@ -52,4 +52,41 @@ class FileUploadResponse(BaseModel):
     message: str
     filename: str
     products_added: int
-    upload_id: str 
+    upload_id: str
+
+# New models for multi-brand system
+class Brand(BaseModel):
+    id: str
+    name: str
+    description: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    is_active: bool = True
+
+class BrandConfig(BaseModel):
+    brand_id: str
+    system_prompt: str
+    welcome_message: str
+    company_info: Dict[str, Any]
+    appearance_settings: Dict[str, Any] = {}
+    updated_at: Optional[datetime] = None
+
+# WebSocket message models
+class WebSocketMessage(BaseModel):
+    type: str  # "chat", "error", "system", "chunk", "complete"
+    data: Dict[str, Any]
+    timestamp: Optional[datetime] = None
+
+class WebSocketChatRequest(BaseModel):
+    message: str
+    brand_id: str
+    conversation_id: Optional[str] = None
+    user_id: Optional[str] = None
+    voice: Optional[bool] = False
+
+class WebSocketChatChunk(BaseModel):
+    content: str
+    is_final: bool = False
+    conversation_id: str
+    suggested_products: Optional[List[Product]] = None
+    confidence_score: Optional[float] = None 

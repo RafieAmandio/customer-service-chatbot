@@ -1,20 +1,34 @@
 from openai import OpenAI
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 import json
 import uuid
 from datetime import datetime
 from config import settings
-from models import ChatMessage, ChatRequest, ChatResponse, Product, ProductRecommendation
+from models import (
+    ChatMessage, ChatRequest, ChatResponse, Product, ProductRecommendation,
+    WebSocketChatRequest, WebSocketChatChunk, Brand, BrandConfig
+)
 from vector_store import VectorStore
 
 class ChatbotService:
-    def __init__(self):
+    def __init__(self, brand_id: str = "default", brand_config: Optional[BrandConfig] = None):
+        self.brand_id = brand_id
         self.openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        self.vector_store = VectorStore()
+        self.vector_store = VectorStore(brand_id=brand_id)
         self.conversations: Dict[str, List[ChatMessage]] = {}
         
-        # Enhanced system prompt with multilingual support
-        self.system_prompt = """
+        # Use custom brand config or default
+        if brand_config:
+            self.system_prompt = brand_config.system_prompt
+            self.brand_config = brand_config
+        else:
+            # Default system prompt for TechPro Solutions
+            self.system_prompt = self._get_default_system_prompt()
+            self.brand_config = None
+    
+    def _get_default_system_prompt(self) -> str:
+        """Get default system prompt for TechPro Solutions"""
+        return """
         You are a helpful customer service chatbot for TechPro Solutions, a premium technology retailer specializing in business and professional equipment.
 
         **MULTILINGUAL SUPPORT:**
@@ -213,12 +227,167 @@ class ChatbotService:
                 conversation_id=conversation_id or str(uuid.uuid4())
             )
 
+    async def chat_stream(self, request: WebSocketChatRequest) -> AsyncGenerator[WebSocketChatChunk, None]:
+        """Stream chat responses for WebSocket"""
+        try:
+            # Get or create conversation
+            conversation_id = request.conversation_id or str(uuid.uuid4())
+            if conversation_id not in self.conversations:
+                self.conversations[conversation_id] = [
+                    ChatMessage(role="system", content=self.system_prompt, timestamp=datetime.now())
+                ]
+            
+            # Add user message to conversation
+            user_message = ChatMessage(
+                role="user", 
+                content=request.message, 
+                timestamp=datetime.now()
+            )
+            self.conversations[conversation_id].append(user_message)
+            
+            # Check if user is asking for product recommendations
+            is_asking_for_products = await self._is_asking_for_product_recommendations(
+                request.message, 
+                self.conversations[conversation_id]
+            )
+            
+            relevant_products = []
+            suggested_products = None
+            confidence_score = None
+            
+            # Only search for products if the user is asking for them
+            if is_asking_for_products:
+                relevant_products = self.vector_store.search_products(request.message, limit=5)
+                suggested_products = [item["product"] for item in relevant_products[:3]] if relevant_products else []
+                confidence_score = self._calculate_confidence(relevant_products)
+            
+            # Stream response using OpenAI
+            full_response = ""
+            async for chunk in self._generate_streaming_response(
+                conversation_id,
+                relevant_products,
+                request.message,
+                is_asking_for_products,
+                is_voice=request.voice
+            ):
+                full_response += chunk
+                yield WebSocketChatChunk(
+                    content=chunk,
+                    is_final=False,
+                    conversation_id=conversation_id,
+                    suggested_products=None,
+                    confidence_score=None
+                )
+            
+            # Send final chunk with complete data
+            yield WebSocketChatChunk(
+                content="",
+                is_final=True,
+                conversation_id=conversation_id,
+                suggested_products=suggested_products,
+                confidence_score=confidence_score
+            )
+            
+            # Add assistant response to conversation
+            assistant_message = ChatMessage(
+                role="assistant", 
+                content=full_response, 
+                timestamp=datetime.now()
+            )
+            self.conversations[conversation_id].append(assistant_message)
+            
+        except Exception as e:
+            print(f"Error in streaming chat service: {e}")
+            yield WebSocketChatChunk(
+                content="I'm sorry, I'm having trouble processing your request right now. / Maaf, saya mengalami kesulitan memproses permintaan Anda.",
+                is_final=True,
+                conversation_id=conversation_id or str(uuid.uuid4()),
+                suggested_products=None,
+                confidence_score=None
+            )
+
+    async def _generate_streaming_response(
+        self, 
+        conversation_id: str, 
+        relevant_products: List[Dict[str, Any]], 
+        current_message: str, 
+        is_product_request: bool, 
+        is_voice: bool = False
+    ) -> AsyncGenerator[str, None]:
+        """Generate streaming response using OpenAI"""
+        try:
+            # Prepare messages for OpenAI
+            messages = []
+            conversation_history = self.conversations[conversation_id]
+            
+            # Add all conversation messages
+            for msg in conversation_history:
+                messages.append({"role": msg.role, "content": msg.content})
+            
+            # Add voice-specific instruction if needed
+            if is_voice:
+                voice_instruction = """
+                IMPORTANT: This is a voice response request. Your response must be:
+                - Maximum 1 sentence
+                - Concise and direct
+                - Natural for voice output
+                - Still helpful and informative
+                
+                Respond in the same language as the customer (English or Indonesian).
+                """
+                messages.append({
+                    "role": "system",
+                    "content": voice_instruction
+                })
+            
+            # Add product context only if this is a product-related request
+            if is_product_request and relevant_products:
+                product_context = self._prepare_product_context(relevant_products)
+                context_message = f"""
+                Product Information for current query "{current_message}":
+                {product_context}
+                
+                Use this product information to help answer the customer's question. Remember to:
+                - Respond in the same language as the customer (English or Indonesian)
+                - Reference their conversation history when relevant
+                - Suggest products that match their stated needs and preferences
+                - Mention current promotions when appropriate
+                {"- Keep response to 1 sentence maximum for voice output" if is_voice else "- Ask follow-up questions to better understand their requirements"}
+                """
+                messages.append({
+                    "role": "system", 
+                    "content": context_message
+                })
+            
+            # Adjust max_tokens for voice responses
+            max_tokens = 50 if is_voice else 600
+            
+            # Create streaming response
+            stream = self.openai_client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=0.7,
+                stream=True
+            )
+            
+            for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    yield chunk.choices[0].delta.content
+                    
+        except Exception as e:
+            print(f"Error generating streaming OpenAI response: {e}")
+            if is_voice:
+                yield "Sorry, I'm having trouble right now. / Maaf, saya mengalami masalah."
+            else:
+                yield "I apologize, but I'm having trouble generating a response right now. Please try rephrasing your question. / Maaf, saya mengalami kesulitan memberikan respons saat ini. Silakan coba ulangi pertanyaan Anda."
+
     def _prepare_product_context(self, relevant_products: List[Dict[str, Any]]) -> str:
         """Prepare product information for the AI model"""
         if not relevant_products:
             return "No specific products found for this query."
         
-        context = "Here are some relevant products from our TechPro Solutions catalog:\n\n"
+        context = f"Here are some relevant products from our {self.brand_id} catalog:\n\n"
         for i, item in enumerate(relevant_products[:5], 1):
             product = item["product"]
             score = item["similarity_score"]
@@ -377,7 +546,7 @@ class ChatbotService:
                 
                 {product_info}
                 
-                Sebagai customer service TechPro Solutions, berikan penjelasan singkat (2-3 kalimat) dalam Bahasa Indonesia
+                Sebagai customer service {self.brand_id}, berikan penjelasan singkat (2-3 kalimat) dalam Bahasa Indonesia
                 mengapa produk-produk ini merupakan rekomendasi yang baik untuk pertanyaan pelanggan. Fokuskan pada:
                 - Bagaimana produk-produk ini sesuai dengan kebutuhan spesifik mereka
                 - Manfaat dan fitur utama yang relevan
@@ -390,7 +559,7 @@ class ChatbotService:
                 
                 {product_info}
                 
-                As a TechPro Solutions customer service representative, provide a brief explanation (2-3 sentences) 
+                As a {self.brand_id} customer service representative, provide a brief explanation (2-3 sentences) 
                 of why these products are good recommendations for this customer's query. Focus on:
                 - How the products match their specific needs
                 - Key benefits and features that are relevant
