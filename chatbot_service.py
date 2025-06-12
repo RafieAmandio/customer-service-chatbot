@@ -9,6 +9,7 @@ from models import (
     WebSocketChatRequest, WebSocketChatChunk, Brand, BrandConfig
 )
 from vector_store import VectorStore
+import asyncio
 
 class ChatbotService:
     def __init__(self, brand_id: str = "default", brand_config: Optional[BrandConfig] = None):
@@ -362,7 +363,7 @@ class ChatbotService:
             # Adjust max_tokens for voice responses
             max_tokens = 50 if is_voice else 600
             
-            # Create streaming response
+            # Create streaming response (synchronous call)
             stream = self.openai_client.chat.completions.create(
                 model=settings.OPENAI_MODEL,
                 messages=messages,
@@ -371,9 +372,13 @@ class ChatbotService:
                 stream=True
             )
             
+            # Iterate through stream chunks and yield them
             for chunk in stream:
                 if chunk.choices[0].delta.content is not None:
-                    yield chunk.choices[0].delta.content
+                    content = chunk.choices[0].delta.content
+                    # Add small delay to make streaming visible
+                    await asyncio.sleep(0.02)  # 20ms delay between chunks
+                    yield content
                     
         except Exception as e:
             print(f"Error generating streaming OpenAI response: {e}")
