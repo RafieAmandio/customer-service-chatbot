@@ -280,6 +280,30 @@ class BrandService:
         
         return self.chatbot_instances[brand_id]
     
+    def refresh_chatbot_instance(self, brand_id: str) -> bool:
+        """Force refresh chatbot instance with updated configuration"""
+        try:
+            if brand_id not in self.brands or not self.brands[brand_id].is_active:
+                return False
+            
+            # Remove existing instance to force recreation with new config
+            if brand_id in self.chatbot_instances:
+                del self.chatbot_instances[brand_id]
+            
+            # Create new instance with updated config
+            brand_config = self.brand_configs.get(brand_id)
+            self.chatbot_instances[brand_id] = ChatbotService(
+                brand_id=brand_id,
+                brand_config=brand_config
+            )
+            
+            print(f"Refreshed chatbot instance for brand: {brand_id}")
+            return True
+            
+        except Exception as e:
+            print(f"Error refreshing chatbot instance for {brand_id}: {e}")
+            return False
+    
     def get_brand_stats(self, brand_id: str) -> Optional[Dict]:
         """Get statistics for a brand"""
         if brand_id not in self.brands:

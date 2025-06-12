@@ -89,4 +89,8 @@ class WebSocketChatChunk(BaseModel):
     is_final: bool = False
     conversation_id: str
     suggested_products: Optional[List[Product]] = None
-    confidence_score: Optional[float] = None 
+    confidence_score: Optional[float] = None
+
+# System prompt update model
+class SystemPromptRequest(BaseModel):
+    system_prompt: str 

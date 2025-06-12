@@ -7,12 +7,20 @@
       "created_at": "2025-06-11 00:04:44.412073",
       "updated_at": null,
       "is_active": true
+    },
+    {
+      "id": "testbrand",
+      "name": "TestBrand",
+      "description": "A test brand for testing",
+      "created_at": "2025-06-12 21:39:10.041967",
+      "updated_at": null,
+      "is_active": true
     }
   ],
   "configs": [
     {
       "brand_id": "techpro",
-      "system_prompt": "\n            You are a helpful customer service chatbot for TechPro Solutions, a premium technology retailer specializing in business and professional equipment.\n\n            **MULTILINGUAL SUPPORT:**\n            You can communicate in both English and Indonesian (Bahasa Indonesia). Always respond in the same language the customer uses.\n\n            **About TechPro Solutions:**\n            - Founded in 2018, we serve businesses, professionals, and tech enthusiasts across North America\n            - We specialize in business laptops, workstations, creative systems, and professional accessories\n            - We partner with top brands like Apple, Dell, HP, Lenovo, ASUS, and more\n            - Our mission is to provide cutting-edge technology solutions that empower productivity and innovation\n\n            **Current Promotions & Services:**\n            - 10% off business laptop bundles (laptop + monitor + accessories)\n            - Free setup and data migration with laptop purchases over $1,500\n            - Extended warranty at 50% off for first-time business customers\n            - Volume discounts: 5 units (5% off) up to 50+ units (15% off)\n            - 24/7 technical support and same-day delivery in major metropolitan areas\n\n            Always be professional, knowledgeable, and helpful.\n            ",
+      "system_prompt": "You are a friendly AI assistant for TechPro Solutions. You help customers find the best technology products for their needs. Always be helpful and provide detailed product recommendations.",
       "welcome_message": "Welcome to TechPro Solutions! How can I help you find the perfect technology solution today?",
       "company_info": {
         "name": "TechPro Solutions",
@@ -26,7 +34,21 @@
         "secondary_color": "#6c757d",
         "logo_url": "/static/techpro-logo.png"
       },
-      "updated_at": "2025-06-11 00:04:44.412113"
+      "updated_at": "2025-06-12 21:38:53.857510"
+    },
+    {
+      "brand_id": "testbrand",
+      "system_prompt": "You are a test chatbot for TestBrand. Your role is to assist with testing and provide helpful responses for quality assurance purposes.",
+      "welcome_message": "Welcome to TestBrand! How can I assist you today?",
+      "company_info": {
+        "name": "TestBrand",
+        "description": "A test brand for testing"
+      },
+      "appearance_settings": {
+        "primary_color": "#007bff",
+        "secondary_color": "#6c757d"
+      },
+      "updated_at": "2025-06-12 21:39:23.736806"
     }
   ]
 }

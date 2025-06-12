@@ -10,7 +10,8 @@ import os
 from models import (
     Product, ChatRequest, ChatResponse, ProductQuery, 
     ProductRecommendation, ChatMessage, FileUpload, FileUploadResponse,
-    Brand, BrandConfig, WebSocketMessage, WebSocketChatRequest, WebSocketChatChunk
+    Brand, BrandConfig, WebSocketMessage, WebSocketChatRequest, WebSocketChatChunk,
+    SystemPromptRequest
 )
 from chatbot_service import ChatbotService
 from vector_store import VectorStore
@@ -201,6 +202,70 @@ async def get_brand_stats(brand_id: str):
     if not stats:
         raise HTTPException(status_code=404, detail="Brand not found")
     return stats
+
+# New endpoint for updating system prompt specifically
+@app.put("/brands/{brand_id}/system-prompt")
+async def update_brand_system_prompt(brand_id: str, request: SystemPromptRequest):
+    """Update the system prompt for a specific brand's chatbot"""
+    try:
+        # Check if brand exists
+        brand = brand_service.get_brand(brand_id)
+        if not brand:
+            raise HTTPException(status_code=404, detail="Brand not found")
+        
+        # Update only the system prompt
+        config = brand_service.update_brand_config(
+            brand_id=brand_id,
+            system_prompt=request.system_prompt,
+            welcome_message=None,
+            company_info=None,
+            appearance_settings=None
+        )
+        
+        if not config:
+            raise HTTPException(status_code=500, detail="Failed to update system prompt")
+        
+        # Force refresh the chatbot instance with new system prompt
+        brand_service.refresh_chatbot_instance(brand_id)
+        
+        return {
+            "message": "System prompt updated successfully",
+            "brand_id": brand_id,
+            "brand_name": brand.name,
+            "system_prompt": config.system_prompt,
+            "updated_at": config.updated_at
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating system prompt: {str(e)}")
+
+@app.get("/brands/{brand_id}/system-prompt")
+async def get_brand_system_prompt(brand_id: str):
+    """Get the current system prompt for a specific brand's chatbot"""
+    try:
+        # Check if brand exists
+        brand = brand_service.get_brand(brand_id)
+        if not brand:
+            raise HTTPException(status_code=404, detail="Brand not found")
+        
+        # Get brand configuration
+        config = brand_service.get_brand_config(brand_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Brand configuration not found")
+        
+        return {
+            "brand_id": brand_id,
+            "brand_name": brand.name,
+            "system_prompt": config.system_prompt,
+            "updated_at": config.updated_at
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving system prompt: {str(e)}")
 
 # WebSocket Chat Endpoint
 @app.websocket("/ws/chat/{brand_id}")
