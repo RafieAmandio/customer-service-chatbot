@@ -323,10 +323,21 @@ class ChatbotService:
                         fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
                         suggested_products = []
                         confidence_score = 0.0
-                        # Stream fallback message and finish
+                        # Stream fallback message word-by-word
                         print(f"[WebSocket][{conversation_id}] Assistant: {fallback_message}")
+                        words = fallback_message.split()
+                        for word in words:
+                            yield WebSocketChatChunk(
+                                content=word + " ",
+                                is_final=False,
+                                conversation_id=conversation_id,
+                                suggested_products=suggested_products,
+                                confidence_score=confidence_score
+                            )
+                            await asyncio.sleep(0.03)
+                        # Send the final chunk (empty content, is_final=True)
                         yield WebSocketChatChunk(
-                            content=fallback_message,
+                            content="",
                             is_final=True,
                             conversation_id=conversation_id,
                             suggested_products=suggested_products,
