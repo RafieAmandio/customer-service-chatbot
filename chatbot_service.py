@@ -316,41 +316,34 @@ class ChatbotService:
                     suggested_products = [item["product"] for item in relevant_products[:3]]
                     confidence_score = self._calculate_confidence(relevant_products)
                     print(f"[WebSocket][{conversation_id}] Suggested products: {[p.name for p in suggested_products]}")
-                    # LLM-based post-filtering for relevance
-                    is_relevant = await self._are_suggestions_relevant_with_ai(request.message, suggested_products)
-                    print(f"[WebSocket][{conversation_id}] LLM relevance: {is_relevant}")
-                    if not is_relevant:
-                        fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
-                        suggested_products = []
-                        confidence_score = 0.0
-                        # Stream fallback message word-by-word
-                        print(f"[WebSocket][{conversation_id}] Assistant: {fallback_message}")
-                        words = fallback_message.split()
-                        for word in words:
-                            yield WebSocketChatChunk(
-                                content=word + " ",
-                                is_final=False,
-                                conversation_id=conversation_id,
-                                suggested_products=suggested_products,
-                                confidence_score=confidence_score
-                            )
-                            await asyncio.sleep(0.03)
-                        # Send the final chunk (empty content, is_final=True)
-                        yield WebSocketChatChunk(
-                            content="",
-                            is_final=True,
-                            conversation_id=conversation_id,
-                            suggested_products=suggested_products,
-                            confidence_score=confidence_score
-                        )
-                        # Add assistant response to conversation
-                        assistant_message = ChatMessage(
-                            role="assistant", 
-                            content=fallback_message, 
-                            timestamp=datetime.now()
-                        )
-                        self.conversations[conversation_id].append(assistant_message)
-                        return
+            
+            # If fallback, stream fallback message word-by-word and return
+            if fallback_message is not None:
+                print(f"[WebSocket][{conversation_id}] Assistant: {fallback_message}")
+                words = fallback_message.split()
+                for word in words:
+                    yield WebSocketChatChunk(
+                        content=word + " ",
+                        is_final=False,
+                        conversation_id=conversation_id,
+                        suggested_products=suggested_products,
+                        confidence_score=confidence_score
+                    )
+                    await asyncio.sleep(0.03)
+                yield WebSocketChatChunk(
+                    content="",
+                    is_final=True,
+                    conversation_id=conversation_id,
+                    suggested_products=suggested_products,
+                    confidence_score=confidence_score
+                )
+                assistant_message = ChatMessage(
+                    role="assistant", 
+                    content=fallback_message, 
+                    timestamp=datetime.now()
+                )
+                self.conversations[conversation_id].append(assistant_message)
+                return
             
             # Stream response using OpenAI
             full_response = ""
@@ -387,6 +380,38 @@ class ChatbotService:
                 timestamp=datetime.now()
             )
             self.conversations[conversation_id].append(assistant_message)
+
+            # After streaming, check relevance asynchronously and send correction if needed
+            async def post_check():
+                if is_asking_for_products and suggested_products:
+                    is_relevant = await self._are_suggestions_relevant_with_ai(request.message, suggested_products)
+                    print(f"[WebSocket][{conversation_id}] LLM relevance (post): {is_relevant}")
+                    if not is_relevant:
+                        warning = "\nNote: The recommended products above may not be relevant to your request."
+                        for char in warning:
+                            await asyncio.sleep(0.01)
+                            await self._ws_send_chunk(
+                                WebSocketChatChunk(
+                                    content=char,
+                                    is_final=False,
+                                    conversation_id=conversation_id,
+                                    suggested_products=[],
+                                    confidence_score=0.0
+                                )
+                            )
+                        await self._ws_send_chunk(
+                            WebSocketChatChunk(
+                                content="",
+                                is_final=True,
+                                conversation_id=conversation_id,
+                                suggested_products=[],
+                                confidence_score=0.0
+                            )
+                        )
+            # Attach a helper to send chunk after generator is done
+            # This requires a reference to the websocket send function, which is not available here by default.
+            # You may need to adapt your WebSocket handler to pass a send function or queue to this coroutine.
+            asyncio.create_task(post_check())
             
         except Exception as e:
             print(f"[WebSocket][{conversation_id}] Error: {e}")
@@ -397,6 +422,11 @@ class ChatbotService:
                 suggested_products=None,
                 confidence_score=None
             )
+
+    # Helper for post-check streaming (to be called with websocket send function)
+    async def _ws_send_chunk(self, chunk: WebSocketChatChunk):
+        # This method should be overridden or monkey-patched in the WebSocket handler to actually send the chunk
+        pass
 
     async def _generate_streaming_response(
         self, 
