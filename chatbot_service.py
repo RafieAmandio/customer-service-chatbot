@@ -161,6 +161,14 @@ class ChatbotService:
             message_lower = message.lower()
             return any(keyword in message_lower for keyword in product_keywords)
 
+    def _extract_category_from_query(self, query: str, available_categories: list) -> Optional[str]:
+        """Simple keyword match for category extraction from user query."""
+        query_lower = query.lower()
+        for category in available_categories:
+            if category.lower() in query_lower:
+                return category
+        return None
+
     async def chat(self, request: ChatRequest) -> ChatResponse:
         """Main chat function that handles customer queries with conversation history"""
         try:
@@ -189,16 +197,38 @@ class ChatbotService:
             product_context = ""
             suggested_products = None
             confidence_score = None
+            fallback_message = None
+            similarity_threshold = 0.7
             
             # Only search for products if the user is asking for them
             if is_asking_for_products:
-                relevant_products = self.vector_store.search_products(request.message, limit=5)
-                product_context = self._prepare_product_context(relevant_products)
-                suggested_products = [item["product"] for item in relevant_products[:3]] if relevant_products else []
-                confidence_score = self._calculate_confidence(relevant_products)
+                # Get all available categories for this brand
+                available_categories = list(set(p.category for p in self.vector_store.get_all_products()))
+                user_category = self._extract_category_from_query(request.message, available_categories)
+                if user_category:
+                    # Only search within the detected category
+                    relevant_products = self.vector_store.search_by_category(user_category, limit=5)
+                else:
+                    # Fallback to normal vector search
+                    relevant_products = self.vector_store.search_products(request.message, limit=5)
+                # Apply similarity threshold (only for vector search, not category search)
+                if not user_category:
+                    relevant_products = [item for item in relevant_products if item['similarity_score'] >= similarity_threshold]
+                # If no relevant products, set fallback message
+                if not relevant_products:
+                    if user_category:
+                        fallback_message = f"Sorry, we currently do not offer products in the '{user_category}' category. Can I help you with something else?"
+                    else:
+                        fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
+                    suggested_products = []
+                    confidence_score = 0.0
+                else:
+                    product_context = self._prepare_product_context(relevant_products)
+                    suggested_products = [item["product"] for item in relevant_products[:3]]
+                    confidence_score = self._calculate_confidence(relevant_products)
             
             # Generate response using OpenAI with full conversation context
-            response_content = await self._generate_response(
+            response_content = fallback_message if fallback_message else await self._generate_response(
                 conversation_id, 
                 product_context,
                 request.message,

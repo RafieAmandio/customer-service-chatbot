@@ -336,6 +336,75 @@ async def websocket_chat_endpoint(websocket: WebSocket, brand_id: str):
         }, websocket)
         connection_manager.disconnect(websocket, brand_id)
 
+# WebSocket Voice Chat Endpoint (Legacy Voice Mode)
+@app.websocket("/ws/voice/{brand_id}")
+async def websocket_voice_chat_endpoint(websocket: WebSocket, brand_id: str):
+    """WebSocket endpoint for streaming chat (voice-optimized, legacy mode)"""
+    await connection_manager.connect(websocket, brand_id)
+    
+    # Get chatbot instance for the brand
+    chatbot_service = brand_service.get_chatbot_instance(brand_id)
+    if not chatbot_service:
+        await websocket.send_json({
+            "type": "error",
+            "data": {"message": f"Brand '{brand_id}' not found or inactive"}
+        })
+        await websocket.close()
+        return
+    
+    try:
+        # Send welcome message
+        brand_config = brand_service.get_brand_config(brand_id)
+        welcome_message = brand_config.welcome_message if brand_config else f"Welcome to {brand_id}!"
+        
+        await connection_manager.send_message({
+            "type": "welcome",
+            "data": {
+                "message": welcome_message,
+                "brand_id": brand_id,
+                "brand_name": brand_service.get_brand(brand_id).name
+            }
+        }, websocket)
+        
+        while True:
+            # Receive message from client
+            data = await websocket.receive_json()
+            
+            if data.get("type") == "chat":
+                # Create request object, force voice=True
+                chat_data = data.get("data", {})
+                request = WebSocketChatRequest(
+                    message=chat_data.get("message", ""),
+                    brand_id=brand_id,
+                    conversation_id=chat_data.get("conversation_id"),
+                    user_id=chat_data.get("user_id"),
+                    voice=True  # Always force voice mode
+                )
+                
+                # Stream response
+                async for chunk in chatbot_service.chat_stream(request):
+                    chunk_data = {
+                        "type": "chunk" if not chunk.is_final else "complete",
+                        "data": chunk.model_dump()
+                    }
+                    await connection_manager.send_message(chunk_data, websocket)
+                    
+            elif data.get("type") == "ping":
+                await connection_manager.send_message({
+                    "type": "pong",
+                    "data": {"timestamp": datetime.now().isoformat()}
+                }, websocket)
+                
+    except WebSocketDisconnect:
+        connection_manager.disconnect(websocket, brand_id)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        await connection_manager.send_message({
+            "type": "error",
+            "data": {"message": f"Server error: {str(e)}"}
+        }, websocket)
+        connection_manager.disconnect(websocket, brand_id)
+
 # Traditional Chat Endpoints (with brand support)
 @app.post("/chat/{brand_id}", response_model=ChatResponse)
 async def chat_with_brand_bot(brand_id: str, request: ChatRequest):

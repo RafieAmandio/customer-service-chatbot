@@ -1,0 +1,36 @@
+[
+    {
+      "id": "product-1",
+      "name": "Haier 7,800 BTU SACC Portable Air Conditioner",
+      "description": "Perfect for Medium Rooms, 3-in-1 Portable Air Conditioner, Auto Evaporation, Digital LED Controls",
+      "category": "Portable Air Conditioners",
+      "price": 9367500,
+      "features": "3-in-1, Auto Evaporation, LED Controls",
+      "specifications": "{\"btu\": \"7,800 SACC / 11,000 ASHRAE\", \"coverage\": \"up to 250 sq ft\"}",
+      "availability": true,
+      "brand_id": "haier"
+    },
+    {
+      "id": "product-2",
+      "name": "Haier 7,200 BTU SACC Portable Air Conditioner",
+      "description": "Perfect for Medium Rooms, 3-in-1 Portable Air Conditioner, Auto Evaporation, Digital LED Controls",
+      "category": "Portable Air Conditioners",
+      "price": 7318700,
+      "features": "3-in-1, Auto Evaporation, LED Controls",
+      "specifications": "{\"btu\": \"7,200 SACC / 10,000 ASHRAE\", \"coverage\": \"up to 350 sq ft\"}",
+      "availability": true,
+      "brand_id": "haier"
+    },
+    {
+      "id": "product-3",
+      "name": "Haier 10,000 BTU Smart Electronic Window Air Conditioner",
+      "description": "Cools Medium Rooms, Built-In WiFi, Maximum Comfort Cool, Voice Control",
+      "category": "Window Air Conditioners",
+      "price": 5403450,
+      "features": "Smart, Built-in WiFi, Voice Control",
+      "specifications": "{\"btu\": \"10,000\", \"coverage\": \"up to 450 sq ft\"}",
+      "availability": true,
+      "brand_id": "haier"
+    }
+  ]
+  
