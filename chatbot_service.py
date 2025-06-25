@@ -175,10 +175,8 @@ class ChatbotService:
             return False
         product_names = ', '.join([f"{p.name} ({p.category})" for p in products])
         prompt = (
-            f'User asked: "{query}"
-'
-            f'Suggested products: {product_names}
-'
+            f'User asked: "{query}"\n'
+            f'Suggested products: {product_names}\n'
             'Are these products relevant to the user\'s request? Return only "true" or "false".'
         )
         try:
