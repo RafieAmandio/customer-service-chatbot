@@ -289,6 +289,7 @@ class ChatbotService:
                 content=request.message, 
                 timestamp=datetime.now()
             )
+            print(f"[WebSocket][{conversation_id}] User: {request.message}")
             self.conversations[conversation_id].append(user_message)
             
             # Check if user is asking for product recommendations
@@ -314,13 +315,16 @@ class ChatbotService:
                 else:
                     suggested_products = [item["product"] for item in relevant_products[:3]]
                     confidence_score = self._calculate_confidence(relevant_products)
+                    print(f"[WebSocket][{conversation_id}] Suggested products: {[p.name for p in suggested_products]}")
                     # LLM-based post-filtering for relevance
                     is_relevant = await self._are_suggestions_relevant_with_ai(request.message, suggested_products)
+                    print(f"[WebSocket][{conversation_id}] LLM relevance: {is_relevant}")
                     if not is_relevant:
                         fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
                         suggested_products = []
                         confidence_score = 0.0
                         # Stream fallback message and finish
+                        print(f"[WebSocket][{conversation_id}] Assistant: {fallback_message}")
                         yield WebSocketChatChunk(
                             content=fallback_message,
                             is_final=True,
@@ -356,6 +360,7 @@ class ChatbotService:
                 )
             
             # Send final chunk with complete data
+            print(f"[WebSocket][{conversation_id}] Assistant: {full_response}")
             yield WebSocketChatChunk(
                 content="",
                 is_final=True,
@@ -373,7 +378,7 @@ class ChatbotService:
             self.conversations[conversation_id].append(assistant_message)
             
         except Exception as e:
-            print(f"Error in streaming chat service: {e}")
+            print(f"[WebSocket][{conversation_id}] Error: {e}")
             yield WebSocketChatChunk(
                 content="I'm sorry, I'm having trouble processing your request right now. / Maaf, saya mengalami kesulitan memproses permintaan Anda.",
                 is_final=True,
