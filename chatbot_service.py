@@ -363,7 +363,15 @@ class ChatbotService:
                     confidence_score=None
                 )
             
-            # Send final chunk with complete data
+            # After streaming, check relevance before sending final chunk
+            if is_asking_for_products and suggested_products:
+                is_relevant = await self._are_suggestions_relevant_with_ai(request.message, suggested_products)
+                print(f"[WebSocket][{conversation_id}] LLM relevance (post): {is_relevant}")
+                if not is_relevant:
+                    suggested_products = []
+                    confidence_score = 0.0
+            
+            # Send final chunk with complete data (filtered if needed)
             print(f"[WebSocket][{conversation_id}] Assistant: {full_response}")
             yield WebSocketChatChunk(
                 content="",
@@ -380,38 +388,6 @@ class ChatbotService:
                 timestamp=datetime.now()
             )
             self.conversations[conversation_id].append(assistant_message)
-
-            # After streaming, check relevance asynchronously and send correction if needed
-            async def post_check():
-                if is_asking_for_products and suggested_products:
-                    is_relevant = await self._are_suggestions_relevant_with_ai(request.message, suggested_products)
-                    print(f"[WebSocket][{conversation_id}] LLM relevance (post): {is_relevant}")
-                    if not is_relevant:
-                        warning = "\nNote: The recommended products above may not be relevant to your request."
-                        for char in warning:
-                            await asyncio.sleep(0.01)
-                            await self._ws_send_chunk(
-                                WebSocketChatChunk(
-                                    content=char,
-                                    is_final=False,
-                                    conversation_id=conversation_id,
-                                    suggested_products=[],
-                                    confidence_score=0.0
-                                )
-                            )
-                        await self._ws_send_chunk(
-                            WebSocketChatChunk(
-                                content="",
-                                is_final=True,
-                                conversation_id=conversation_id,
-                                suggested_products=[],
-                                confidence_score=0.0
-                            )
-                        )
-            # Attach a helper to send chunk after generator is done
-            # This requires a reference to the websocket send function, which is not available here by default.
-            # You may need to adapt your WebSocket handler to pass a send function or queue to this coroutine.
-            asyncio.create_task(post_check())
             
         except Exception as e:
             print(f"[WebSocket][{conversation_id}] Error: {e}")
