@@ -113,20 +113,23 @@ class BrandService:
     
     def create_brand(self, name: str, description: str, brand_id: Optional[str] = None) -> Brand:
         """Create a new brand"""
-        if not brand_id:
-            brand_id = name.lower().replace(" ", "_").replace("-", "_")
-            # Ensure unique ID
-            counter = 1
-            original_id = brand_id
-            while brand_id in self.brands:
-                brand_id = f"{original_id}_{counter}"
-                counter += 1
         
-        if brand_id in self.brands:
-            raise ValueError(f"Brand with ID '{brand_id}' already exists")
+        # Sanitize brand ID to be compliant with ChromaDB's naming scheme
+        id_source = brand_id if brand_id else name
+        sanitized_id = id_source.lower().replace(" ", "-")
+
+        # Ensure unique ID
+        final_id = sanitized_id
+        counter = 1
+        while final_id in self.brands:
+            final_id = f"{sanitized_id}-{counter}"
+            counter += 1
+        
+        if final_id in self.brands:
+            raise ValueError(f"Brand with ID '{final_id}' already exists")
         
         brand = Brand(
-            id=brand_id,
+            id=final_id,
             name=name,
             description=description,
             created_at=datetime.now(),
@@ -135,7 +138,7 @@ class BrandService:
         
         # Create default config for the brand
         default_config = BrandConfig(
-            brand_id=brand_id,
+            brand_id=final_id,
             system_prompt=f"""
             You are a helpful customer service chatbot for {name}.
             
@@ -162,11 +165,11 @@ class BrandService:
             updated_at=datetime.now()
         )
         
-        self.brands[brand_id] = brand
-        self.brand_configs[brand_id] = default_config
+        self.brands[final_id] = brand
+        self.brand_configs[final_id] = default_config
         self._save_brands_to_file()
         
-        print(f"Created new brand: {name} (ID: {brand_id})")
+        print(f"Created new brand: {name} (ID: {final_id})")
         return brand
     
     def get_brand(self, brand_id: str) -> Optional[Brand]:

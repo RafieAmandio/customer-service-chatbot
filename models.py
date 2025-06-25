@@ -11,6 +11,7 @@ class Product(BaseModel):
     features: List[str]
     specifications: Dict[str, Any]
     availability: bool = True
+    brand_id: Optional[str] = None
 
 class ChatMessage(BaseModel):
     role: str  # "user", "assistant", "system"

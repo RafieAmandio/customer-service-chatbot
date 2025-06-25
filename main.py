@@ -408,6 +408,9 @@ async def get_brand_products(brand_id: str):
         
         vector_store = VectorStore(brand_id=brand_id)
         products = vector_store.get_all_products()
+        # Set brand_id for each product
+        for product in products:
+            product.brand_id = brand_id
         return products
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving products: {str(e)}")
@@ -421,7 +424,11 @@ async def add_product(product: Product, background_tasks: BackgroundTasks):
 @app.get("/products", response_model=List[Product])
 async def get_all_products():
     """Get all products from the default catalog"""
-    return await get_brand_products("techpro")
+    products = await get_brand_products("techpro")
+    # If get_brand_products returns a Response, just return it
+    if isinstance(products, list):
+        return products
+    return products
 
 @app.put("/brands/{brand_id}/products/{product_id}")
 async def update_brand_product(brand_id: str, product_id: str, product: Product, background_tasks: BackgroundTasks):
