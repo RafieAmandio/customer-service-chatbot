@@ -169,6 +169,31 @@ class ChatbotService:
                 return category
         return None
 
+    async def _are_suggestions_relevant_with_ai(self, query: str, products: list) -> bool:
+        """Use OpenAI to check if suggested products are relevant to the user's query."""
+        if not products:
+            return False
+        product_names = ', '.join([f"{p.name} ({p.category})" for p in products])
+        prompt = (
+            f'User asked: "{query}"
+'
+            f'Suggested products: {product_names}
+'
+            'Are these products relevant to the user\'s request? Return only "true" or "false".'
+        )
+        try:
+            response = self.openai_client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=10,
+                temperature=0.0
+            )
+            result = response.choices[0].message.content.strip().lower()
+            return result == "true"
+        except Exception as e:
+            print(f"Error in LLM relevance check: {e}")
+            return True  # fallback: assume relevant if LLM fails
+
     async def chat(self, request: ChatRequest) -> ChatResponse:
         """Main chat function that handles customer queries with conversation history"""
         try:
@@ -226,6 +251,12 @@ class ChatbotService:
                     product_context = self._prepare_product_context(relevant_products)
                     suggested_products = [item["product"] for item in relevant_products[:3]]
                     confidence_score = self._calculate_confidence(relevant_products)
+                    # LLM-based post-filtering for relevance
+                    is_relevant = await self._are_suggestions_relevant_with_ai(request.message, suggested_products)
+                    if not is_relevant:
+                        fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
+                        suggested_products = []
+                        confidence_score = 0.0
             
             # Generate response using OpenAI with full conversation context
             response_content = fallback_message if fallback_message else await self._generate_response(
