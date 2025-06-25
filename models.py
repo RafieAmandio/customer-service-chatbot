@@ -14,7 +14,7 @@ class Product(BaseModel):
     brand_id: Optional[str] = None
 
 class ChatMessage(BaseModel):
-    role: str  # "user", "assistant", "system"
+    role: str  
     content: str
     timestamp: Optional[datetime] = None
 
@@ -22,7 +22,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
-    voice: Optional[bool] = False  # New parameter for voice responses
+    voice: Optional[bool] = False  
 
 class ChatResponse(BaseModel):
     response: str

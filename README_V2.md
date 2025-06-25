@@ -311,7 +311,9 @@ The API maintains backward compatibility:
 
 ### Migration Steps
 
-1. **Start the V2.0 server** - existing data is automatically migrated
+1. **Start the V''2.0 server** - exi
+
+sting data is automatically migrated
 2. **Create new brands** using the brand management API
 3. **Upload brand-specific data** using brand-scoped endpoints
 4. **Update clients** to use WebSocket streaming (optional)
