@@ -221,7 +221,7 @@ class ChatbotService:
             suggested_products = None
             confidence_score = None
             fallback_message = None
-            similarity_threshold = 0.9
+            similarity_threshold = 0.7
             
             # Only search for products if the user is asking for them
             if is_asking_for_products:
@@ -315,7 +315,7 @@ class ChatbotService:
             suggested_products = None
             confidence_score = None
             fallback_message = None
-            similarity_threshold = 0.9
+            similarity_threshold = 0.7
             
             # Only search for products if the user is asking for them
             if is_asking_for_products:
