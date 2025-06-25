@@ -225,24 +225,10 @@ class ChatbotService:
             
             # Only search for products if the user is asking for them
             if is_asking_for_products:
-                # Get all available categories for this brand
-                available_categories = list(set(p.category for p in self.vector_store.get_all_products()))
-                user_category = self._extract_category_from_query(request.message, available_categories)
-                if user_category:
-                    # Only search within the detected category
-                    relevant_products = self.vector_store.search_by_category(user_category, limit=5)
-                else:
-                    # Fallback to normal vector search
-                    relevant_products = self.vector_store.search_products(request.message, limit=5)
-                # Apply similarity threshold (only for vector search, not category search)
-                if not user_category:
-                    relevant_products = [item for item in relevant_products if item['similarity_score'] >= similarity_threshold]
-                # If no relevant products, set fallback message
+                relevant_products = self.vector_store.search_products(request.message, limit=5)
+                relevant_products = [item for item in relevant_products if item['similarity_score'] >= similarity_threshold]
                 if not relevant_products:
-                    if user_category:
-                        fallback_message = f"Sorry, we currently do not offer products in the '{user_category}' category. Can I help you with something else?"
-                    else:
-                        fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
+                    fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
                     suggested_products = []
                     confidence_score = 0.0
                 else:
@@ -319,19 +305,10 @@ class ChatbotService:
             
             # Only search for products if the user is asking for them
             if is_asking_for_products:
-                available_categories = list(set(p.category for p in self.vector_store.get_all_products()))
-                user_category = self._extract_category_from_query(request.message, available_categories)
-                if user_category:
-                    relevant_products = self.vector_store.search_by_category(user_category, limit=5)
-                else:
-                    relevant_products = self.vector_store.search_products(request.message, limit=5)
-                if not user_category:
-                    relevant_products = [item for item in relevant_products if item['similarity_score'] >= similarity_threshold]
+                relevant_products = self.vector_store.search_products(request.message, limit=5)
+                relevant_products = [item for item in relevant_products if item['similarity_score'] >= similarity_threshold]
                 if not relevant_products:
-                    if user_category:
-                        fallback_message = f"Sorry, we currently do not offer products in the '{user_category}' category. Can I help you with something else?"
-                    else:
-                        fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
+                    fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
                     suggested_products = []
                     confidence_score = 0.0
                 else:
