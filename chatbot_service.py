@@ -316,12 +316,51 @@ class ChatbotService:
             relevant_products = []
             suggested_products = None
             confidence_score = None
+            fallback_message = None
+            similarity_threshold = 0.9
             
             # Only search for products if the user is asking for them
             if is_asking_for_products:
-                relevant_products = self.vector_store.search_products(request.message, limit=5)
-                suggested_products = [item["product"] for item in relevant_products[:3]] if relevant_products else []
-                confidence_score = self._calculate_confidence(relevant_products)
+                available_categories = list(set(p.category for p in self.vector_store.get_all_products()))
+                user_category = self._extract_category_from_query(request.message, available_categories)
+                if user_category:
+                    relevant_products = self.vector_store.search_by_category(user_category, limit=5)
+                else:
+                    relevant_products = self.vector_store.search_products(request.message, limit=5)
+                if not user_category:
+                    relevant_products = [item for item in relevant_products if item['similarity_score'] >= similarity_threshold]
+                if not relevant_products:
+                    if user_category:
+                        fallback_message = f"Sorry, we currently do not offer products in the '{user_category}' category. Can I help you with something else?"
+                    else:
+                        fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
+                    suggested_products = []
+                    confidence_score = 0.0
+                else:
+                    suggested_products = [item["product"] for item in relevant_products[:3]]
+                    confidence_score = self._calculate_confidence(relevant_products)
+                    # LLM-based post-filtering for relevance
+                    is_relevant = await self._are_suggestions_relevant_with_ai(request.message, suggested_products)
+                    if not is_relevant:
+                        fallback_message = "Sorry, we don't have products matching your request. Please try a different search term or browse our categories."
+                        suggested_products = []
+                        confidence_score = 0.0
+                        # Stream fallback message and finish
+                        yield WebSocketChatChunk(
+                            content=fallback_message,
+                            is_final=True,
+                            conversation_id=conversation_id,
+                            suggested_products=suggested_products,
+                            confidence_score=confidence_score
+                        )
+                        # Add assistant response to conversation
+                        assistant_message = ChatMessage(
+                            role="assistant", 
+                            content=fallback_message, 
+                            timestamp=datetime.now()
+                        )
+                        self.conversations[conversation_id].append(assistant_message)
+                        return
             
             # Stream response using OpenAI
             full_response = ""
