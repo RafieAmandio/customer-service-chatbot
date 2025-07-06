@@ -11,7 +11,7 @@ from models import (
     Product, ChatRequest, ChatResponse, ProductQuery, 
     ProductRecommendation, ChatMessage, FileUpload, FileUploadResponse,
     Brand, BrandConfig, WebSocketMessage, WebSocketChatRequest, WebSocketChatChunk,
-    SystemPromptRequest
+    SystemPromptRequest, BrandConfigUpdateRequest
 )
 from chatbot_service import ChatbotService
 from vector_store import VectorStore
@@ -182,14 +182,11 @@ async def get_brand_config(brand_id: str):
 @app.put("/brands/{brand_id}/config", response_model=BrandConfig)
 async def update_brand_config(
     brand_id: str,
-    system_prompt: Optional[str] = None,
-    welcome_message: Optional[str] = None,
-    company_info: Optional[Dict] = None,
-    appearance_settings: Optional[Dict] = None
+    request: BrandConfigUpdateRequest
 ):
     """Update brand configuration"""
     config = brand_service.update_brand_config(
-        brand_id, system_prompt, welcome_message, company_info, appearance_settings
+        brand_id, request.system_prompt, request.welcome_message, request.company_info, request.appearance_settings
     )
     if not config:
         raise HTTPException(status_code=404, detail="Brand not found")
@@ -779,4 +776,4 @@ if __name__ == "__main__":
         port=8000,
         reload=True,
         log_level="info"
-    ) 
+    )

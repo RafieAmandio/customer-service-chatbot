@@ -95,3 +95,10 @@ class WebSocketChatChunk(BaseModel):
 # System prompt update model
 class SystemPromptRequest(BaseModel):
     system_prompt: str 
+
+# Brand config update model
+class BrandConfigUpdateRequest(BaseModel):
+    system_prompt: Optional[str] = None
+    welcome_message: Optional[str] = None
+    company_info: Optional[Dict[str, Any]] = None
+    appearance_settings: Optional[Dict[str, Any]] = None
