@@ -20,12 +20,23 @@ class ChatbotService:
         
         # Use custom brand config or default
         if brand_config:
-            self.system_prompt = brand_config.system_prompt
+            self.system_prompt = self._build_system_prompt(brand_config)
             self.brand_config = brand_config
         else:
             # Default system prompt for TechPro Solutions
             self.system_prompt = self._get_default_system_prompt()
             self.brand_config = None
+    
+    def _build_system_prompt(self, brand_config: BrandConfig) -> str:
+        """Build combined system prompt with persona prompt if available"""
+        base_prompt = brand_config.system_prompt
+        
+        if brand_config.persona_prompt:
+            # Combine system prompt with persona prompt
+            combined_prompt = f"{base_prompt}\n\n**PERSONA & COMMUNICATION STYLE:**\n{brand_config.persona_prompt}"
+            return combined_prompt
+        
+        return base_prompt
     
     def _get_default_system_prompt(self) -> str:
         """Get default system prompt for TechPro Solutions"""
@@ -712,4 +723,4 @@ class ChatbotService:
 
     def get_active_conversations_count(self) -> int:
         """Get count of active conversations"""
-        return len(self.conversations) 
+        return len(self.conversations)

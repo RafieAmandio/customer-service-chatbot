@@ -67,6 +67,7 @@ class Brand(BaseModel):
 class BrandConfig(BaseModel):
     brand_id: str
     system_prompt: str
+    persona_prompt: Optional[str] = None
     welcome_message: str
     company_info: Dict[str, Any]
     appearance_settings: Dict[str, Any] = {}
@@ -99,6 +100,7 @@ class SystemPromptRequest(BaseModel):
 # Brand config update model
 class BrandConfigUpdateRequest(BaseModel):
     system_prompt: Optional[str] = None
+    persona_prompt: Optional[str] = None
     welcome_message: Optional[str] = None
     company_info: Optional[Dict[str, Any]] = None
     appearance_settings: Optional[Dict[str, Any]] = None

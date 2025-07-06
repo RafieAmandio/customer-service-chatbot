@@ -186,7 +186,7 @@ async def update_brand_config(
 ):
     """Update brand configuration"""
     config = brand_service.update_brand_config(
-        brand_id, request.system_prompt, request.welcome_message, request.company_info, request.appearance_settings
+        brand_id, request.system_prompt, request.persona_prompt, request.welcome_message, request.company_info, request.appearance_settings
     )
     if not config:
         raise HTTPException(status_code=404, detail="Brand not found")
@@ -214,6 +214,7 @@ async def update_brand_system_prompt(brand_id: str, request: SystemPromptRequest
         config = brand_service.update_brand_config(
             brand_id=brand_id,
             system_prompt=request.system_prompt,
+            persona_prompt=None,
             welcome_message=None,
             company_info=None,
             appearance_settings=None

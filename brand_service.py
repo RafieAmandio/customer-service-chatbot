@@ -241,6 +241,7 @@ class BrandService:
         self, 
         brand_id: str, 
         system_prompt: Optional[str] = None,
+        persona_prompt: Optional[str] = None,
         welcome_message: Optional[str] = None,
         company_info: Optional[Dict] = None,
         appearance_settings: Optional[Dict] = None
@@ -253,6 +254,8 @@ class BrandService:
         
         if system_prompt is not None:
             config.system_prompt = system_prompt
+        if persona_prompt is not None:
+            config.persona_prompt = persona_prompt
         if welcome_message is not None:
             config.welcome_message = welcome_message
         if company_info is not None:
@@ -334,4 +337,4 @@ class BrandService:
             
         except Exception as e:
             print(f"Error getting brand stats for {brand_id}: {e}")
-            return None 
+            return None
